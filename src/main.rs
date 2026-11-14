@@ -1,121 +1,77 @@
-use clap::Parser;
-use qrcode::QrCode;
-use qrcode::Color;
-use ravif::{Encoder, Img, RGBA8};
-use std::fs::File;
+//! `qrimg` binary entry point.
+
 use std::io::{self, Read, Write};
-use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
 
-/// Generate a QR code image from text (webp by default).
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Message to encode into a QR code. If omitted, reads from stdin.
-    #[arg(short = 'm', long = "message")]
-    message: Option<String>,
-
-    /// Output file name (default: qr.<ext>)
-    #[arg(short = 'o', long = "output")]
-    output: Option<String>,
-
-    /// Output format: webp (default), svg, or avif.
-    #[arg(
-        short = 'f',
-        long = "format",
-        default_value = "webp",
-        value_enum
-    )]
-    format: Format,
-}
-
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
-enum Format {
-    Webp,
-    Svg,
-    Avif,
-}
-
-impl Format {
-    fn extension(self) -> &'static str {
-        match self {
-            Format::Webp => "webp",
-            Format::Svg => "svg",
-            Format::Avif => "avif",
-        }
-    }
-}
+use clap::Parser;
+use qrimg::cli::Args;
+use qrimg::{default_filename, generate_qr};
 
 fn main() {
     let args = Args::parse();
+    let format = args.format;
+    let size = args.size;
 
     let text = match args.message {
         Some(m) => m,
-        None => {
-            let mut buf = String::new();
-            eprint!("Enter text (Ctrl+D to create, Ctrl+C to cancel): ");
-            io::stderr().flush().unwrap();
-            io::stdin()
-                .read_to_string(&mut buf)
-                .expect("failed to read stdin");
-            buf.trim_end().to_string()
+        None => read_stdin_with_prompt(),
+    };
+
+    let out_name = args.output.unwrap_or_else(|| default_filename(format));
+
+    // Animated spinner while generating.
+    let spinning = Arc::new(AtomicBool::new(true));
+    let spinning_clone = Arc::clone(&spinning);
+    let format_emoji = format.emoji();
+    let spinner = thread::spawn(move || {
+        let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let mut i = 0;
+        while spinning_clone.load(Ordering::Relaxed) {
+            let _ = write!(io::stderr(), "\r{} generating QR... {}", frames[i % frames.len()], format_emoji);
+            let _ = io::stderr().flush();
+            i = (i + 1) % frames.len();
+            thread::sleep(std::time::Duration::from_millis(80));
+        }
+        let _ = write!(io::stderr(), "\r{} done.   \n", format_emoji);
+        let _ = io::stderr().flush();
+    });
+
+    let bytes = match generate_qr(&text, size, format) {
+        Ok(b) => b,
+        Err(e) => {
+            spinning.store(false, Ordering::Relaxed);
+            let _ = spinner.join();
+            eprintln!("❌ {e}");
+            std::process::exit(1);
         }
     };
 
-    let qr = QrCode::new(&text).expect("failed to generate QR code");
-    let output = args
-        .output
-        .unwrap_or_else(|| format!("{}.{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs(), args.format.extension()));
+    spinning.store(false, Ordering::Relaxed);
+    let _ = spinner.join();
 
-    let bytes: Vec<u8> = match args.format {
-        Format::Webp => {
-            let width = qr.width() as u32;
-            let mut pixels: Vec<u8> = Vec::with_capacity((width * width * 4) as usize);
-            for y in 0..width {
-                for x in 0..width {
-                    let color = qr[(x as usize, y as usize)];
-                    let (r, g, b, a) = match color {
-                        Color::Dark => (0, 0, 0, 255),
-                        Color::Light => (255, 255, 255, 255),
-                    };
-                    pixels.extend_from_slice(&[r, g, b, a]);
-                }
-            }
-            let mut buf = Vec::new();
-            let encoder = image_webp::WebPEncoder::new(&mut buf);
-            encoder
-                .encode(&pixels, width, width, image_webp::ColorType::Rgba8)
-                .expect("failed to encode WebP");
-            buf
-        }
-        Format::Svg => {
-            qr.render::<qrcode::render::svg::Color>()
-                .build()
-                .into_bytes()
-        }
-        Format::Avif => {
-            let width = qr.width() as u32;
-            let mut pixels: Vec<RGBA8> = Vec::with_capacity((width * width) as usize);
-            for y in 0..width {
-                for x in 0..width {
-                    let color = qr[(x as usize, y as usize)];
-                    let (r, g, b, a) = match color {
-                        Color::Dark => (0, 0, 0, 255),
-                        Color::Light => (255, 255, 255, 255),
-                    };
-                    pixels.push(RGBA8::new(r, g, b, a));
-                }
-            }
-            let encoder = Encoder::new();
-            let img = Img::new(&pixels[..], width as usize, width as usize);
-            let encoded = encoder.encode_rgba(img).expect("failed to encode AVIF");
-            encoded.avif_file
-        }
-    };
+    let path = std::path::Path::new(&out_name);
+    let mut file = std::fs::File::create(path).unwrap_or_else(|_| {
+        eprintln!("❌ failed to create {}", out_name);
+        std::process::exit(1);
+    });
+    file.write_all(&bytes).unwrap_or_else(|_| {
+        eprintln!("❌ failed to write {}", out_name);
+        std::process::exit(1);
+    });
 
-    let path = Path::new(&output);
-    let mut f = File::create(path).expect(&format!("failed to create {}", output));
-    f.write_all(&bytes)
-        .expect(&format!("failed to write {}", output));
+    println!("✅ {}  ({} bytes, {}×{})", out_name, bytes.len(), size, size);
+}
 
-    println!("{}", output);
+/// Read text from stdin with a newline-prefixed emoji prompt.
+/// Ctrl+D creates the QR; Ctrl+C cancels.
+fn read_stdin_with_prompt() -> String {
+    let mut buf = String::new();
+    let _ = write!(io::stderr(), "\n🔲 Enter text (Ctrl+D to create, Ctrl+C to cancel): ");
+    let _ = io::stderr().flush();
+    io::stdin()
+        .read_to_string(&mut buf)
+        .expect("failed to read stdin");
+    buf.trim_end().to_string()
 }
