@@ -48,7 +48,7 @@ pub struct Args {
     /// Output image size in pixels (square).
     ///
     /// QR codes are square, so only one side needs to be specified.
-    /// Valid range: 8–4096. Default: 512.
+    /// Valid range: 8–8192. Default: 512.
     #[arg(short = 's', long = "size", default_value = "512")]
     pub size: u32,
 

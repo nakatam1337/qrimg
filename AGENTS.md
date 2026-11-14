@@ -40,7 +40,7 @@ Set `CARGO_REGISTRY_TOKEN` environment variable with your crates.io API token, t
 ## Notes
 - WebP output uses `image-webp` (pure Rust, lossless)
 - AVIF output uses `ravif` (pure Rust, rav1e-based, needs `nasm` at build time for `asm` feature)
-- SVG output uses `qrcode`'s built-in `svg` feature
+- SVG output renders modules manually to `<rect>` elements (pure Rust, edge-to-edge)
 - Spinner uses ANSI escape `\r\x1b[2K` to clear the line cleanly
 - Input priority: `-m` > `-f` > stdin (with `Ctrl+D` to create, `Ctrl+C` to cancel)
 - `EcLevel` is passed as `String` from CLI, parsed via `parse_ec_level()`, converted via `ec_level_to_qrcode()`

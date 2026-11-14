@@ -7,7 +7,7 @@ Pure Rust CLI tool — no C compiler or system libraries needed at runtime.
 ## Install
 
 ```bash
-# From crates.io (once published)
+# From crates.io
 cargo install qrimg
 
 # Or build from source
