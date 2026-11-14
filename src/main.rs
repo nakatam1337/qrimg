@@ -1,6 +1,7 @@
 //! `qrimg` binary entry point.
 
 use std::io::{self, Read, Write};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -14,10 +15,7 @@ fn main() {
     let format = args.format;
     let size = args.size;
 
-    let text = match args.message {
-        Some(m) => m,
-        None => read_stdin_with_prompt(),
-    };
+    let text = read_input(&args);
 
     let out_name = resolve_output(args.output.as_deref(), format);
 
@@ -29,12 +27,17 @@ fn main() {
         let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         let mut i = 0;
         while spinning_clone.load(Ordering::Relaxed) {
-            let _ = write!(io::stderr(), "\r{} generating QR... {}", frames[i % frames.len()], format_emoji);
+            let _ = write!(
+                io::stderr(),
+                "\r\x1b[2K{} generating QR... {}",
+                frames[i % frames.len()],
+                format_emoji
+            );
             let _ = io::stderr().flush();
             i = (i + 1) % frames.len();
             thread::sleep(std::time::Duration::from_millis(80));
         }
-        let _ = write!(io::stderr(), "\r{} done.   \n", format_emoji);
+        let _ = write!(io::stderr(), "\r\x1b[2K{} done.\n", format_emoji);
         let _ = io::stderr().flush();
     });
 
@@ -51,7 +54,7 @@ fn main() {
     spinning.store(false, Ordering::Relaxed);
     let _ = spinner.join();
 
-    let path = std::path::Path::new(&out_name);
+    let path = Path::new(&out_name);
     let mut file = std::fs::File::create(path).unwrap_or_else(|_| {
         eprintln!("❌ failed to create {}", out_name);
         std::process::exit(1);
@@ -62,6 +65,20 @@ fn main() {
     });
 
     println!("✅ {}  ({} bytes, {}×{})", out_name, bytes.len(), size, size);
+}
+
+/// Resolve the input text: `-f` file takes priority, then `-m` message, then stdin.
+fn read_input(args: &Args) -> String {
+    if let Some(path) = &args.file {
+        std::fs::read_to_string(path).unwrap_or_else(|e| {
+            eprintln!("❌ failed to read file '{path}': {e}");
+            std::process::exit(1);
+        })
+    } else if let Some(m) = &args.message {
+        m.clone()
+    } else {
+        read_stdin_with_prompt()
+    }
 }
 
 /// Read text from stdin with a newline-prefixed emoji prompt.
