@@ -68,7 +68,7 @@ fn main() {
 /// Ctrl+D creates the QR; Ctrl+C cancels.
 fn read_stdin_with_prompt() -> String {
     let mut buf = String::new();
-    let _ = write!(io::stderr(), "\n🔲 Enter text (Ctrl+D to create, Ctrl+C to cancel): ");
+    let _ = write!(io::stderr(), "\n🔲 Enter text (Ctrl+D to create, Ctrl+C to cancel):\n");
     let _ = io::stderr().flush();
     io::stdin()
         .read_to_string(&mut buf)
