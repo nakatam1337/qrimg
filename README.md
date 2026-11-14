@@ -62,8 +62,7 @@ qrimg -m "new" -t webp -o existing.webp -y
 - **Input priority:** `-m` message > `-f` file > stdin (interactive prompt)
 - **Extension:** decided by `-t/--type` only — any extension you add to `-o` is ignored
 - **Default output name:** Unix timestamp + extension (e.g. `1794695770.webp`)
-- **Quiet zone:** QR codes include a white border (quiet zone) around the data modules.
-  This is standard and required for scanners to detect the code — it's not a bug.
+- **Edge-to-edge:** QR codes are rendered edge-to-edge with no quiet zone border (consistent across WebP, SVG, and AVIF). The quiet zone is planned as a future option (see Roadmap).
 - **Overwrite:** if the output file exists and `-y` is not passed, you'll be prompted (interactive) or it will fail (non-interactive)
 - **Input limit:** 2,000 bytes max — QR codes top out around 2,953 bytes, so larger input is rejected with a clear message
 
@@ -160,7 +159,7 @@ cat xmr.txt | qrimg -t webp -s 512 -o xmr-stdin
 qrimg -f xmr.txt -e H -t svg -s 512 -o xmr-high-ec
 ```
 
-<img src="examples/xmr-message.svg" width="300" alt="QR code with high error correction" />
+<img src="examples/xmr-high-ec.svg" width="300" alt="QR code with high error correction" />
 
 ```bash
 # Skip overwrite confirmation
@@ -171,10 +170,17 @@ qrimg -f xmr.txt -t webp -s 512 -o xmr-512 -y
 
 ```bash
 # Encode a URL as SVG
-qrimg -m "https://example.com" -t svg -o link
+qrimg -m "url:https://example.com" -t svg -o link
 ```
 
 <img src="examples/xmr-message.svg" width="300" alt="URL QR code example" />
+
+```bash
+# Encode the Monero address directly via -m
+qrimg -m "monero:84UmH6cimhPMt24owNTJBtdBh2SQjZmDbQswMEZsQN7gDkX4Du9MdKYGnoMUgHW91jAcywZeCiXVgbq7Yz7PGWVTFtAuKbn" -t webp -o xmr-direct
+```
+
+<img src="examples/xmr-message.webp" width="300" alt="QR code via -m argument" />
 
 ```bash
 # Encode file contents as AVIF
@@ -191,6 +197,20 @@ qrimg -m "WiFi password" -s 256 -t webp -o wifi
 qrimg -m "fragile data" -e H -t svg -o robust
 ```
 
+### Interactive prompt (no arguments)
+
+Just run `qrimg` with no arguments — it prints an emoji prompt to stderr and waits for you to type text (Ctrl+D to create, Ctrl+C to cancel):
+
+```bash
+qrimg
+# 🔲 Enter text (Ctrl+D to create, Ctrl+C to cancel):
+# > monero:84UmH6cimhPMt24owNTJBtdBh2SQjZmDbQswMEZsQN7gDkX4Du9MdKYGnoMUgHW91jAcywZeCiXVgbq7Yz7PGWVTFtAuKbn
+# ^D
+# ✅ 1794695770.webp  (422 bytes, 512×512)
+```
+
+A spinner shows while the QR code is being generated, then the file is written to disk.
+
 ## Donate
 
 If you find `qrimg` useful, you can donate to the Monero address below:
@@ -198,10 +218,6 @@ If you find `qrimg` useful, you can donate to the Monero address below:
 ```
 monero:84UmH6cimhPMt24owNTJBtdBh2SQjZmDbQswMEZsQN7gDkX4Du9MdKYGnoMUgHW91jAcywZeCiXVgbq7Yz7PGWVTFtAuKbn
 ```
-
-Or scan the QR code directly:
-
-<img src="examples/xmr-512.webp" width="200" alt="Monero donation QR code" />
 
 Thank you! 🙏💖💸 Every monero helps keep this project going! ✨🚀💫
 

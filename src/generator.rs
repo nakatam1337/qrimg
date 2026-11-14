@@ -142,10 +142,34 @@ pub(super) fn generate_qr(
             Ok(buf)
         }
         // ---------------------------------------------------------------
-        // SVG: use qrcode's built-in SVG renderer (vector output)
+        // SVG: render manually from the module grid (edge-to-edge, no quiet zone)
         // ---------------------------------------------------------------
         Format::Svg => {
-            let svg = qr.render::<qrcode::render::svg::Color>().build();
+            let modules = render_modules(&qr);
+            let scaled = scale_nearest(&modules, module_count, size);
+
+            let mut svg = String::new();
+            svg.push_str(&format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="0 0 {} {}">"#,
+                size, size, size, size
+            ));
+
+            // Dark modules only — light/white is the background.
+            // Each dark module becomes a 1×1 black rect at its scaled pixel position.
+            // No quiet zone is added: output is edge-to-edge, consistent with WebP/AVIF.
+            for dy in 0..size {
+                for dx in 0..size {
+                    let idx = (dy * size + dx) as usize;
+                    if scaled[idx].r == 0 {
+                        svg.push_str(&format!(
+                            r#"<rect x="{}" y="{}" width="1" height="1" fill="black"/>"#,
+                            dx, dy
+                        ));
+                    }
+                }
+            }
+
+            svg.push_str("</svg>");
             Ok(svg.into_bytes())
         }
         // ---------------------------------------------------------------
