@@ -18,6 +18,7 @@ pub struct Args {
     /// Message to encode into a QR code.
     ///
     /// If omitted, the tool falls back to `-f` (file) or stdin.
+    /// Note: if both `-m` and `-f` are provided, `-f` takes priority.
     #[arg(short = 'm', long = "message")]
     pub message: Option<String>,
 

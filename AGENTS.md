@@ -15,8 +15,8 @@
 - `ROADMAP.md` — planned features
 
 ## Conventions
-- **`-m, --message`** — text to encode (priority over `-f` and stdin)
-- **`-f, --file`** — read message from a text file
+- **`-m, --message`** — text to encode (fallback to `-f` and stdin)
+- **`-f, --file`** — read message from a text file (takes priority over `-m` and stdin)
 - **`-t, --type`** — output format: `webp` (default), `svg`, `avif`
 - **`-o, --output`** — output filename (base name only; extension decided by `-t`, any extension given to `-o` is ignored)
 - **`-s, --size`** — square image size in pixels, default `512`, range `8–8192`

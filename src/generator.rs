@@ -160,16 +160,32 @@ pub(super) fn generate_qr(
                 size, size
             ));
 
-            // Dark modules only — each becomes a 1×1 black rect at its scaled pixel position.
+            // Dark modules only — use run-length encoding: for each row, find
+            // horizontal runs of black pixels and emit one <rect> per run.
+            // This keeps SVG files small (one rect per run instead of one per pixel).
             // No quiet zone is added: output is edge-to-edge, consistent with WebP/AVIF.
             for dy in 0..size {
-                for dx in 0..size {
+                let mut dx = 0;
+                while dx < size {
                     let idx = (dy * size + dx) as usize;
                     if scaled[idx].r == 0 {
+                        // Start of a black run — find its end.
+                        let mut run_end = dx + 1;
+                        while run_end < size {
+                            let next_idx = (dy * size + run_end) as usize;
+                            if scaled[next_idx].r != 0 {
+                                break;
+                            }
+                            run_end += 1;
+                        }
+                        let run_width = run_end - dx;
                         svg.push_str(&format!(
-                            r#"<rect x="{}" y="{}" width="1" height="1" fill="black"/>"#,
-                            dx, dy
+                            r#"<rect x="{}" y="{}" width="{}" height="1" fill="black"/>"#,
+                            dx, dy, run_width
                         ));
+                        dx = run_end;
+                    } else {
+                        dx += 1;
                     }
                 }
             }

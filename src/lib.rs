@@ -114,7 +114,7 @@ pub fn generate_qr(
 #[cfg(test)]
 mod tests {
     use super::{default_filename, generate_qr, resolve_output, Format};
-    use crate::cli::ec_level_to_qrcode;
+    use crate::cli::{ec_level_to_qrcode, parse_ec_level};
 
     #[test]
     fn default_filename_has_correct_extension() {
@@ -217,5 +217,71 @@ mod tests {
         // None -> timestamp default.
         let default = resolve_output(None, Format::Webp);
         assert!(default.ends_with(".webp"));
+    }
+
+    #[test]
+    fn generate_qr_rejects_size_too_small() {
+        // Size below 8 pixels must be rejected.
+        let ec = ec_level_to_qrcode("M");
+        let err = generate_qr("test", 7, Format::Webp, ec).unwrap_err();
+        assert!(err.contains("too small"));
+    }
+
+    #[test]
+    fn generate_qr_rejects_size_too_large() {
+        // Size above 8192 pixels must be rejected.
+        let ec = ec_level_to_qrcode("M");
+        let err = generate_qr("test", 8193, Format::Webp, ec).unwrap_err();
+        assert!(err.contains("too large"));
+    }
+
+    #[test]
+    fn generate_qr_all_ec_levels() {
+        // All four error correction levels must produce valid output.
+        for level in ["L", "M", "Q", "H"] {
+            let ec = ec_level_to_qrcode(level);
+            let bytes = generate_qr("hello", 64, Format::Webp, ec).unwrap();
+            assert!(!bytes.is_empty(), "EC level {level} produced empty output");
+        }
+    }
+
+    #[test]
+    fn generate_qr_svg_has_white_background() {
+        // SVG output must include a full-canvas white background rect.
+        let ec = ec_level_to_qrcode("M");
+        let bytes = generate_qr("hello", 64, Format::Svg, ec).unwrap();
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(
+            text.contains("<rect x=\"0\" y=\"0\" width=\"64\" height=\"64\" fill=\"white\"/>"),
+            "SVG should have a white background rect"
+        );
+    }
+
+    #[test]
+    fn parse_ec_level_accepts_all_levels() {
+        // All four levels (case-insensitive) must parse successfully.
+        for input in ["L", "M", "Q", "H", "l", "m", "q", "h"] {
+            let result = parse_ec_level(input);
+            assert!(result.is_ok(), "parse_ec_level('{input}') should succeed");
+            assert_eq!(result.unwrap(), input.to_uppercase());
+        }
+    }
+
+    #[test]
+    fn parse_ec_level_rejects_invalid() {
+        // Invalid EC level strings must be rejected.
+        for input in ["X", "LM", "", "invalid", "l m"] {
+            let result = parse_ec_level(input);
+            assert!(result.is_err(), "parse_ec_level('{input}') should fail");
+        }
+    }
+
+    #[test]
+    fn ec_level_to_qrcode_maps_all_levels() {
+        // Each string level must map to the correct qrcode::EcLevel variant.
+        assert_eq!(ec_level_to_qrcode("L"), qrcode::EcLevel::L);
+        assert_eq!(ec_level_to_qrcode("M"), qrcode::EcLevel::M);
+        assert_eq!(ec_level_to_qrcode("Q"), qrcode::EcLevel::Q);
+        assert_eq!(ec_level_to_qrcode("H"), qrcode::EcLevel::H);
     }
 }
