@@ -153,4 +153,19 @@ mod tests {
         let large = generate_qr("test", 256, Format::Webp).unwrap().len();
         assert!(large > small);
     }
+
+    #[test]
+    fn generate_qr_rejects_oversized_input() {
+        let too_big = "x".repeat(2001);
+        let err = generate_qr(&too_big, 64, Format::Webp).unwrap_err();
+        assert!(err.contains("too large"));
+        assert!(err.contains("2,953"));
+    }
+
+    #[test]
+    fn generate_qr_accepts_max_size_input() {
+        let max = "x".repeat(2000);
+        let bytes = generate_qr(&max, 64, Format::Webp).unwrap();
+        assert!(!bytes.is_empty());
+    }
 }

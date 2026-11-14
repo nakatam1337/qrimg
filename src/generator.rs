@@ -5,6 +5,11 @@ use qrcode::Color;
 use qrcode::QrCode;
 use ravif::{Encoder, Img, RGBA8};
 
+/// Maximum input size in bytes to prevent accidentally encoding huge files.
+/// QR codes top out around ~2,953 bytes (binary, Version 40, Level L), so
+/// anything larger is almost certainly a mistake.
+const MAX_INPUT_SIZE: usize = 2000;
+
 /// Render the QR code into an RGBA pixel buffer (one pixel per module).
 fn render_modules(qr: &QrCode) -> Vec<RGBA8> {
     let n = qr.width();
@@ -35,6 +40,15 @@ fn scale_nearest(pixels: &[RGBA8], src: u32, dst: u32) -> Vec<RGBA8> {
 }
 
 pub(super) fn generate_qr(text: &str, size: u32, format: Format) -> Result<Vec<u8>, String> {
+    let input_len = text.len();
+    if input_len > MAX_INPUT_SIZE {
+        let kb = input_len / 1024;
+        return Err(format!(
+            "input too large: {} bytes ({} KB). QR codes max out around 2,953 bytes; \
+             consider splitting your data or using a smaller input.",
+            input_len, kb
+        ));
+    }
     let qr = QrCode::new(text).map_err(|e| format!("failed to generate QR code: {e}"))?;
     let module_count = qr.width() as u32;
 

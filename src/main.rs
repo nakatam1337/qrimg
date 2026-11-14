@@ -10,6 +10,8 @@ use clap::Parser;
 use qrimg::cli::Args;
 use qrimg::{generate_qr, resolve_output};
 
+
+
 fn main() {
     let args = Args::parse();
     let format = args.format;
