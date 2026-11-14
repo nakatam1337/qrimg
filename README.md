@@ -169,33 +169,12 @@ qrimg -f xmr.txt -t webp -s 512 -o xmr-512 -y
 ### More examples
 
 ```bash
-# Encode a URL as SVG
-qrimg -m "url:https://example.com" -t svg -o link
-```
-
-<img src="examples/xmr-message.svg" width="300" alt="URL QR code example" />
-
-```bash
 # Encode the Monero address directly via -m
 qrimg -m "monero:84UmH6cimhPMt24owNTJBtdBh2SQjZmDbQswMEZsQN7gDkX4Du9MdKYGnoMUgHW91jAcywZeCiXVgbq7Yz7PGWVTFtAuKbn" -t webp -o xmr-direct
 ```
 
 <img src="examples/xmr-message.webp" width="300" alt="QR code via -m argument" />
 
-```bash
-# Encode file contents as AVIF
-qrimg -f secret.txt -t avif -o secret
-```
-
-```bash
-# Small QR code for printing
-qrimg -m "WiFi password" -s 256 -t webp -o wifi
-```
-
-```bash
-# High error correction (scannable even if damaged)
-qrimg -m "fragile data" -e H -t svg -o robust
-```
 
 ### Interactive prompt (no arguments)
 
