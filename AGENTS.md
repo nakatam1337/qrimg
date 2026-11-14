@@ -9,7 +9,7 @@
 - `src/generator.rs` — QR module rendering, nearest-neighbor scaling, WebP/SVG/AVIF encoding, input + size validation
 - `src/main.rs` — binary entry point, stdin prompt with emoji, animated spinner, overwrite confirmation, file writing
 - `tests/cli.rs` — CLI integration tests (spawn the compiled binary)
-- `LICENSE-MIT`, `LICENSE-APACHE` — dual license
+- `LICENSE` — CC0-1.0 (public domain dedication)
 - `AGENTS.md` — this file
 - `ROADMAP.md` — planned features
 
