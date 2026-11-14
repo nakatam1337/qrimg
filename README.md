@@ -213,13 +213,9 @@ A spinner shows while the QR code is being generated, then the file is written t
 
 ## Donate
 
-If you find `qrimg` useful, you can donate to the Monero address below:
+If you find `qrimg` useful, you can donate to the Monero address above.
 
-```
-monero:84UmH6cimhPMt24owNTJBtdBh2SQjZmDbQswMEZsQN7gDkX4Du9MdKYGnoMUgHW91jAcywZeCiXVgbq7Yz7PGWVTFtAuKbn
-```
-
-Thank you! 🙏💖💸 Every monero helps keep this project going! ✨🚀💫
+Thank you! 🙏💖💸 ✨🚀💫
 
 ## License
 
