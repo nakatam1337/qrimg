@@ -1,6 +1,6 @@
 [package]
 name = "qrimg"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Generate QR code images (.webp, .svg, .avif) from text on the command line"
 license = "CC0-1.0"
