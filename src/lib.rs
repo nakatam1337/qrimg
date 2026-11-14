@@ -7,6 +7,7 @@
 pub mod cli;
 pub mod generator;
 
+use std::path::Path;
 use std::time::SystemTime;
 
 /// Output format for the generated QR code image.
@@ -45,6 +46,32 @@ pub fn default_filename(format: Format) -> String {
     format!("{}.{}", ts, format.extension())
 }
 
+/// Resolve the final output file name.
+///
+/// If `output` is `Some`, use its file stem (stripping any existing
+/// extension) and append the extension decided by `format`, keeping any
+/// directory prefix intact.
+/// If `output` is `None`, fall back to the timestamp-based default name.
+pub fn resolve_output(output: Option<&str>, format: Format) -> String {
+    match output {
+        Some(name) => {
+            let path = Path::new(name);
+            let base = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(name);
+            let stem = format!("{}.{}", base, format.extension());
+            match path.parent() {
+                Some(parent) if !parent.as_os_str().is_empty() => {
+                    parent.join(&stem).to_string_lossy().into_owned()
+                }
+                _ => stem,
+            }
+        }
+        None => default_filename(format),
+    }
+}
+
 /// Public API: generate QR code image bytes for `text`, scaled to `size` x `size` pixels.
 pub fn generate_qr(text: &str, size: u32, format: Format) -> Result<Vec<u8>, String> {
     generator::generate_qr(text, size, format)
@@ -68,6 +95,26 @@ mod tests {
         assert!(ts_part.chars().all(|c| c.is_ascii_digit()));
         assert!(ts_part.len() >= 10);
         assert!(name.ends_with(".webp"));
+    }
+
+    #[test]
+    fn resolve_output_uses_format_extension() {
+        // -o name without extension -> format extension appended
+        assert_eq!(resolve_output(Some("myqr"), Format::Webp), "myqr.webp");
+        assert_eq!(resolve_output(Some("myqr"), Format::Svg), "myqr.svg");
+        assert_eq!(resolve_output(Some("myqr"), Format::Avif), "myqr.avif");
+
+        // -o name with extension -> extension overridden by format
+        assert_eq!(resolve_output(Some("foo.svg"), Format::Avif), "foo.avif");
+        assert_eq!(resolve_output(Some("bar.avif"), Format::Webp), "bar.webp");
+
+        // None -> timestamp default
+        let default = resolve_output(None, Format::Webp);
+        assert!(default.ends_with(".webp"));
+
+        // Directory prefix is preserved, final extension replaced by format
+        let with_dir = resolve_output(Some("/tmp/qrtest.custom.png"), Format::Webp);
+        assert_eq!(with_dir, "/tmp/qrtest.custom.webp");
     }
 
     #[test]

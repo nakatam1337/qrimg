@@ -7,7 +7,7 @@ use std::thread;
 
 use clap::Parser;
 use qrimg::cli::Args;
-use qrimg::{default_filename, generate_qr};
+use qrimg::{generate_qr, resolve_output};
 
 fn main() {
     let args = Args::parse();
@@ -19,7 +19,7 @@ fn main() {
         None => read_stdin_with_prompt(),
     };
 
-    let out_name = args.output.unwrap_or_else(|| default_filename(format));
+    let out_name = resolve_output(args.output.as_deref(), format);
 
     // Animated spinner while generating.
     let spinning = Arc::new(AtomicBool::new(true));
