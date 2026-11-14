@@ -1,25 +1,38 @@
 //! `qrimg` core library: generate QR code images from text.
 //!
+//! This module contains the core logic shared by the binary and tests:
+//! - [`Format`] — the output image format (WebP, SVG, AVIF)
+//! - [`default_filename`] — timestamp-based default output name
+//! - [`resolve_output`] — final output path resolution (format decides extension)
+//! - [`generate_qr`] — public wrapper around the generator
+//!
 //! Supported output formats: WebP (default), SVG, AVIF.
-//! The QR module matrix is rendered then nearest-neighbor scaled to the
-//! requested square output size.
+//! The QR module matrix is rendered to RGBA pixels, then nearest-neighbor
+//! scaled to the requested square output size.
+
+use qrcode::EcLevel;
+use std::time::SystemTime;
 
 pub mod cli;
 pub mod generator;
 
-use std::path::Path;
-use std::time::SystemTime;
-
 /// Output format for the generated QR code image.
+///
+/// Each variant carries an emoji used in the terminal spinner so users can
+/// visually distinguish which format is being produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub enum Format {
+    /// WebP — lossless, widely supported, small file size. Default.
     #[default]
     Webp,
+    /// SVG — vector format, scales infinitely, crisp edges.
     Svg,
+    /// AVIF — modern image format, excellent compression, smaller than WebP.
     Avif,
 }
 
 impl Format {
+    /// File extension for this format (without the leading dot).
     pub fn extension(self) -> &'static str {
         match self {
             Format::Webp => "webp",
@@ -28,6 +41,7 @@ impl Format {
         }
     }
 
+    /// Emoji shown in the spinner while this format is being generated.
     pub fn emoji(self) -> &'static str {
         match self {
             Format::Webp => "🌐",
@@ -38,6 +52,9 @@ impl Format {
 }
 
 /// Default output file name: Unix timestamp + extension.
+///
+/// Using a timestamp avoids overwriting previous QR codes by accident and
+/// works well when the tool is called repeatedly in a loop or script.
 pub fn default_filename(format: Format) -> String {
     let ts = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -48,19 +65,26 @@ pub fn default_filename(format: Format) -> String {
 
 /// Resolve the final output file name.
 ///
-/// If `output` is `Some`, use its file stem (stripping any existing
-/// extension) and append the extension decided by `format`, keeping any
-/// directory prefix intact.
-/// If `output` is `None`, fall back to the timestamp-based default name.
+/// Resolution rules:
+/// 1. If `output` is `Some`, treat it as a **base name**: strip any existing
+///    extension (so the user can't accidentally force the wrong format via
+///    the filename), append the extension decided by `format`, and preserve
+///    any directory prefix.
+/// 2. If `output` is `None`, fall back to the timestamp-based default name.
+///
+/// This design means `-t/--type` is the single source of truth for file
+/// type, which keeps behavior predictable.
 pub fn resolve_output(output: Option<&str>, format: Format) -> String {
     match output {
         Some(name) => {
-            let path = Path::new(name);
+            let path = std::path::Path::new(name);
+            // `file_stem()` removes the final extension (e.g. "foo.svg" -> "foo")
             let base = path
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or(name);
             let stem = format!("{}.{}", base, format.extension());
+            // Preserve directory prefix if present (e.g. "/tmp/dir/foo.png")
             match path.parent() {
                 Some(parent) if !parent.as_os_str().is_empty() => {
                     parent.join(&stem).to_string_lossy().into_owned()
@@ -72,17 +96,29 @@ pub fn resolve_output(output: Option<&str>, format: Format) -> String {
     }
 }
 
-/// Public API: generate QR code image bytes for `text`, scaled to `size` x `size` pixels.
-pub fn generate_qr(text: &str, size: u32, format: Format) -> Result<Vec<u8>, String> {
-    generator::generate_qr(text, size, format)
+/// Public API: generate QR code image bytes for `text`, scaled to `size` x `size` pixels,
+/// using the given error correction level.
+///
+/// Delegates to [`generator::generate_qr`] which does the actual rendering
+/// and encoding. Returns a `Result` so callers can handle oversized input
+/// or encoding failures gracefully.
+pub fn generate_qr(
+    text: &str,
+    size: u32,
+    format: Format,
+    ec_level: EcLevel,
+) -> Result<Vec<u8>, String> {
+    generator::generate_qr(text, size, format, ec_level)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{default_filename, generate_qr, resolve_output, Format};
+    use crate::cli::ec_level_to_qrcode;
 
     #[test]
     fn default_filename_has_correct_extension() {
+        // Each format must produce a filename ending in its own extension.
         assert!(default_filename(Format::Webp).ends_with(".webp"));
         assert!(default_filename(Format::Svg).ends_with(".svg"));
         assert!(default_filename(Format::Avif).ends_with(".avif"));
@@ -90,6 +126,7 @@ mod tests {
 
     #[test]
     fn default_filename_contains_timestamp() {
+        // The filename should start with a Unix timestamp (10+ digits).
         let name = default_filename(Format::Webp);
         let ts_part = name.split('.').next().unwrap();
         assert!(ts_part.chars().all(|c| c.is_ascii_digit()));
@@ -98,27 +135,8 @@ mod tests {
     }
 
     #[test]
-    fn resolve_output_uses_format_extension() {
-        // -o name without extension -> format extension appended
-        assert_eq!(resolve_output(Some("myqr"), Format::Webp), "myqr.webp");
-        assert_eq!(resolve_output(Some("myqr"), Format::Svg), "myqr.svg");
-        assert_eq!(resolve_output(Some("myqr"), Format::Avif), "myqr.avif");
-
-        // -o name with extension -> extension overridden by format
-        assert_eq!(resolve_output(Some("foo.svg"), Format::Avif), "foo.avif");
-        assert_eq!(resolve_output(Some("bar.avif"), Format::Webp), "bar.webp");
-
-        // None -> timestamp default
-        let default = resolve_output(None, Format::Webp);
-        assert!(default.ends_with(".webp"));
-
-        // Directory prefix is preserved, final extension replaced by format
-        let with_dir = resolve_output(Some("/tmp/qrtest.custom.png"), Format::Webp);
-        assert_eq!(with_dir, "/tmp/qrtest.custom.webp");
-    }
-
-    #[test]
     fn format_emojis_are_non_empty() {
+        // Sanity check: every format should have a display emoji.
         assert!(!Format::Webp.emoji().is_empty());
         assert!(!Format::Svg.emoji().is_empty());
         assert!(!Format::Avif.emoji().is_empty());
@@ -126,7 +144,9 @@ mod tests {
 
     #[test]
     fn generate_qr_webp_returns_bytes() {
-        let bytes = generate_qr("hello", 64, Format::Webp).unwrap();
+        // WebP output must start with the RIFF/WEBP container header.
+        let ec = ec_level_to_qrcode("M");
+        let bytes = generate_qr("hello", 64, Format::Webp, ec).unwrap();
         assert!(!bytes.is_empty());
         assert_eq!(&bytes[0..4], b"RIFF");
         assert_eq!(&bytes[8..12], b"WEBP");
@@ -134,7 +154,9 @@ mod tests {
 
     #[test]
     fn generate_qr_svg_returns_valid_svg() {
-        let bytes = generate_qr("hello", 64, Format::Svg).unwrap();
+        // SVG output must be well-formed XML with <svg> root element.
+        let ec = ec_level_to_qrcode("M");
+        let bytes = generate_qr("hello", 64, Format::Svg, ec).unwrap();
         let text = String::from_utf8_lossy(&bytes);
         assert!(text.contains("<svg"));
         assert!(text.contains("</svg>"));
@@ -142,30 +164,58 @@ mod tests {
 
     #[test]
     fn generate_qr_avif_returns_bytes() {
-        let bytes = generate_qr("hello", 64, Format::Avif).unwrap();
+        // AVIF output must contain the AVIF "ftyp" box signature.
+        let ec = ec_level_to_qrcode("M");
+        let bytes = generate_qr("hello", 64, Format::Avif, ec).unwrap();
         assert!(!bytes.is_empty());
         assert_eq!(&bytes[4..8], b"ftyp");
     }
 
     #[test]
     fn generate_qr_different_sizes_different_lengths() {
-        let small = generate_qr("test", 32, Format::Webp).unwrap().len();
-        let large = generate_qr("test", 256, Format::Webp).unwrap().len();
+        // Larger output images should produce larger encoded files.
+        let ec = ec_level_to_qrcode("M");
+        let small = generate_qr("test", 32, Format::Webp, ec).unwrap().len();
+        let large = generate_qr("test", 256, Format::Webp, ec).unwrap().len();
         assert!(large > small);
     }
 
     #[test]
     fn generate_qr_rejects_oversized_input() {
+        // Input exceeding the 2,000-byte limit must be rejected with a clear error.
         let too_big = "x".repeat(2001);
-        let err = generate_qr(&too_big, 64, Format::Webp).unwrap_err();
+        let ec = ec_level_to_qrcode("M");
+        let err = generate_qr(&too_big, 64, Format::Webp, ec).unwrap_err();
         assert!(err.contains("too large"));
         assert!(err.contains("2,953"));
     }
 
     #[test]
     fn generate_qr_accepts_max_size_input() {
+        // Input exactly at the limit should be accepted.
+        let ec = ec_level_to_qrcode("M");
         let max = "x".repeat(2000);
-        let bytes = generate_qr(&max, 64, Format::Webp).unwrap();
+        let bytes = generate_qr(&max, 64, Format::Webp, ec).unwrap();
         assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn resolve_output_uses_format_extension() {
+        // The format flag decides the extension, not the filename argument.
+        assert_eq!(resolve_output(Some("myqr"), Format::Webp), "myqr.webp");
+        assert_eq!(resolve_output(Some("myqr"), Format::Svg), "myqr.svg");
+        assert_eq!(resolve_output(Some("myqr"), Format::Avif), "myqr.avif");
+
+        // Existing extensions on the filename are overridden by the format.
+        assert_eq!(resolve_output(Some("foo.svg"), Format::Avif), "foo.avif");
+        assert_eq!(resolve_output(Some("bar.avif"), Format::Webp), "bar.webp");
+
+        // Directory prefixes are preserved; only the file stem changes.
+        let with_dir = resolve_output(Some("/tmp/qrtest.custom.png"), Format::Webp);
+        assert_eq!(with_dir, "/tmp/qrtest.custom.webp");
+
+        // None -> timestamp default.
+        let default = resolve_output(None, Format::Webp);
+        assert!(default.ends_with(".webp"));
     }
 }
