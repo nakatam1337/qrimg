@@ -18,7 +18,7 @@
 - **`-m, --message`** — text to encode (priority over `-f` and stdin)
 - **`-f, --file`** — read message from a text file
 - **`-t, --type`** — output format: `webp` (default), `svg`, `avif`
-- **`-o, --output`** — output filename (base name only; extension decided by `-t`)
+- **`-o, --output`** — output filename (base name only; extension decided by `-t`, any extension given to `-o` is ignored)
 - **`-s, --size`** — square image size in pixels, default `512`, range `8–8192`
 - **`-e, --ec-level`** — error correction: `L`, `M` (default), `Q`, `H`
 - **`-y, --force`** — skip overwrite confirmation
