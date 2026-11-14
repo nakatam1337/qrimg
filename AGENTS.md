@@ -10,6 +10,7 @@
 - `src/main.rs` — binary entry point, stdin prompt with emoji, animated spinner, overwrite confirmation, file writing
 - `tests/cli.rs` — CLI integration tests (spawn the compiled binary)
 - `LICENSE` — CC0-1.0 (public domain dedication)
+- `README.md` — user-facing documentation
 - `AGENTS.md` — this file
 - `ROADMAP.md` — planned features
 
