@@ -154,8 +154,13 @@ pub(super) fn generate_qr(
                 size, size, size, size
             ));
 
-            // Dark modules only — light/white is the background.
-            // Each dark module becomes a 1×1 black rect at its scaled pixel position.
+            // White background fills the whole canvas so SVG matches WebP/AVIF output.
+            svg.push_str(&format!(
+                r#"<rect x="0" y="0" width="{}" height="{}" fill="white"/>"#,
+                size, size
+            ));
+
+            // Dark modules only — each becomes a 1×1 black rect at its scaled pixel position.
             // No quiet zone is added: output is edge-to-edge, consistent with WebP/AVIF.
             for dy in 0..size {
                 for dx in 0..size {
