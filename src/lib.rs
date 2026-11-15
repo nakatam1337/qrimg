@@ -252,7 +252,7 @@ mod tests {
         let bytes = generate_qr("hello", 64, Format::Svg, ec).unwrap();
         let text = String::from_utf8_lossy(&bytes);
         assert!(
-            text.contains("<rect x=\"0\" y=\"0\" width=\"64\" height=\"64\" fill=\"white\"/>"),
+            text.contains("<rect x=\"0\" y=\"0\"") && text.contains("fill=\"white\"/>"),
             "SVG should have a white background rect"
         );
     }

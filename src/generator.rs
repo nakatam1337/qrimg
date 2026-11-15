@@ -146,35 +146,37 @@ pub(super) fn generate_qr(
         // ---------------------------------------------------------------
         Format::Svg => {
             let modules = render_modules(&qr);
-            let scaled = scale_nearest(&modules, module_count, size);
+            let module_count = qr.width() as u32;
 
             let mut svg = String::new();
             svg.push_str(&format!(
                 r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="0 0 {} {}" shape-rendering="crispEdges">"#,
-                size, size, size, size
+                size, size, module_count, module_count
             ));
 
             // White background fills the whole canvas so SVG matches WebP/AVIF output.
             svg.push_str(&format!(
                 r#"<rect x="0" y="0" width="{}" height="{}" fill="white"/>"#,
-                size, size
+                module_count, module_count
             ));
 
-            // Build path data using run-length encoding per row.
+            // Build path data using run-length encoding per row at *module* resolution.
+            // Coordinates are module indices (e.g. 0..29), not pixel coordinates (0..511),
+            // so the path data uses much smaller numbers — significantly more compact.
             // Each black run becomes one sub-path: M x y h w v 1 h -w z
-            // Using <path> instead of <rect> per run is ~3-4x more compact.
+            // Using <path> instead of <rect> per run is more compact.
             // No quiet zone is added: output is edge-to-edge, consistent with WebP/AVIF.
             let mut path_data = String::new();
-            for dy in 0..size {
+            for dy in 0..module_count {
                 let mut dx = 0;
-                while dx < size {
-                    let idx = (dy * size + dx) as usize;
-                    if scaled[idx].r == 0 {
+                while dx < module_count {
+                    let idx = (dy * module_count + dx) as usize;
+                    if modules[idx].r == 0 {
                         // Start of a black run — find its end.
                         let mut run_end = dx + 1;
-                        while run_end < size {
-                            let next_idx = (dy * size + run_end) as usize;
-                            if scaled[next_idx].r != 0 {
+                        while run_end < module_count {
+                            let next_idx = (dy * module_count + run_end) as usize;
+                            if modules[next_idx].r != 0 {
                                 break;
                             }
                             run_end += 1;
