@@ -150,7 +150,7 @@ pub(super) fn generate_qr(
 
             let mut svg = String::new();
             svg.push_str(&format!(
-                r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="0 0 {} {}">"#,
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="0 0 {} {}" shape-rendering="crispEdges">"#,
                 size, size, size, size
             ));
 
@@ -160,10 +160,11 @@ pub(super) fn generate_qr(
                 size, size
             ));
 
-            // Dark modules only — use run-length encoding: for each row, find
-            // horizontal runs of black pixels and emit one <rect> per run.
-            // This keeps SVG files small (one rect per run instead of one per pixel).
+            // Build path data using run-length encoding per row.
+            // Each black run becomes one sub-path: M x y h w v 1 h -w z
+            // Using <path> instead of <rect> per run is ~3-4x more compact.
             // No quiet zone is added: output is edge-to-edge, consistent with WebP/AVIF.
+            let mut path_data = String::new();
             for dy in 0..size {
                 let mut dx = 0;
                 while dx < size {
@@ -179,15 +180,19 @@ pub(super) fn generate_qr(
                             run_end += 1;
                         }
                         let run_width = run_end - dx;
-                        svg.push_str(&format!(
-                            r#"<rect x="{}" y="{}" width="{}" height="1" fill="black"/>"#,
-                            dx, dy, run_width
+                        path_data.push_str(&format!(
+                            "M{} {}h{}v1h-{}z",
+                            dx, dy, run_width, run_width
                         ));
                         dx = run_end;
                     } else {
                         dx += 1;
                     }
                 }
+            }
+
+            if !path_data.is_empty() {
+                svg.push_str(&format!(r#"<path fill="black" d="{}"/>"#, path_data));
             }
 
             svg.push_str("</svg>");
