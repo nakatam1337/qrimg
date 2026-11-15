@@ -63,6 +63,7 @@ qrimg -m "new" -t webp -o existing.webp -y
 - **Extension:** decided by `-t/--type` only — any extension you add to `-o` is ignored
 - **Default output name:** Unix timestamp + extension (e.g. `1794695770.webp`)
 - **Edge-to-edge:** QR codes are rendered edge-to-edge with no quiet zone border (consistent across WebP, SVG, and AVIF). The quiet zone is planned as a future option (see Roadmap).
+- **Input trimming:** Interactive input (stdin) has trailing whitespace stripped (newlines/spaces from pressing Enter before Ctrl+D). `-m` and `-f` inputs are used exactly as provided.
 - **Overwrite:** if the output file exists and `-y` is not passed, you'll be prompted (interactive) or it will fail (non-interactive)
 - **Input limit:** 2,000 bytes max — QR codes top out around 2,953 bytes, so larger input is rejected with a clear message
 

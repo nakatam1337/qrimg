@@ -145,8 +145,9 @@ fn read_input(args: &Args) -> String {
 /// - Trailing newline is trimmed before returning
 fn read_stdin_with_prompt() -> String {
     let mut buf = String::new();
-    // Prompt goes to stderr; a trailing newline puts the cursor on the next line.
-    let _ = write!(io::stderr(), "\n🔲 Enter text (Ctrl+D to create, Ctrl+C to cancel):\n");
+    // Prompt goes to stderr so it doesn't mix with piped stdout data.
+    // Trailing newline puts the cursor on the next line for input.
+    let _ = write!(io::stderr(), "🔲 Enter text (Ctrl+D to create, Ctrl+C to cancel):\n");
     let _ = io::stderr().flush();
     io::stdin()
         .read_to_string(&mut buf)
