@@ -53,6 +53,7 @@ qrimg -m "new" -t webp -o existing.webp -y
 | `-o, --output` | timestamp + ext | Output **base name** — extension is decided by `-t/--type` only |
 | `-s, --size` | `512` | Square image size in pixels (8–8192) |
 | `-e, --ec-level` | `M` | Error correction: `L`, `M`, `Q`, `H` |
+| `-q, --quiet-space` | `4` | Quiet zone width in modules around the QR code (0 = edge-to-edge) |
 | `-y, --force` | — | Skip overwrite confirmation |
 | `-h, --help` | — | Print help |
 | `-V, --version` | — | Print version |
@@ -62,7 +63,7 @@ qrimg -m "new" -t webp -o existing.webp -y
 - **Input priority:** `-m` message > `-f` file > stdin (interactive prompt)
 - **Extension:** decided by `-t/--type` only — any extension you add to `-o` is ignored
 - **Default output name:** Unix timestamp + extension (e.g. `1794695770.webp`)
-- **Edge-to-edge:** QR codes are rendered edge-to-edge with no quiet zone border (consistent across WebP, SVG, and AVIF). The quiet zone is planned as a future option (see Roadmap).
+- **Edge-to-edge:** Set `-q 0` for edge-to-edge QR codes (no padding). Default quiet zone is 4 modules (QR spec standard) for reliable scanning.
 - **Input trimming:** Interactive input (stdin) has trailing whitespace stripped (newlines/spaces from pressing Enter before Ctrl+D). `-m` and `-f` inputs are used exactly as provided.
 - **Overwrite:** if the output file exists and `-y` is not passed, you'll be prompted (interactive) or it will fail (non-interactive)
 - **Input limit:** 2,000 bytes max — QR codes top out around 2,953 bytes, so larger input is rejected with a clear message
@@ -161,6 +162,16 @@ qrimg -f xmr.txt -e H -t svg -s 512 -o xmr-high-ec
 ```
 
 <img src="examples/xmr-high-ec.svg" width="300" alt="QR code with high error correction" />
+
+```bash
+# Quiet zone of 8 modules (wider padding for better scannability)
+qrimg -f xmr.txt -q 8 -t svg -s 512 -o xmr-quiet-8
+```
+
+```bash
+# Edge-to-edge QR code (no quiet zone padding)
+qrimg -f xmr.txt -q 0 -t webp -s 512 -o xmr-edge
+```
 
 ```bash
 # Skip overwrite confirmation

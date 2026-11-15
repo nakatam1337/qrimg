@@ -16,10 +16,6 @@
 
 ## Roadmap (v2.x — not yet implemented)
 
-### Quiet zone
-Add padding around the QR code modules so they don't go edge-to-edge.
-Improve scannability and match printed QR code conventions.
-
 ### Custom colors
 Allow specifying foreground and background colors instead of black/white.
 Useful for branding or matching design guidelines.

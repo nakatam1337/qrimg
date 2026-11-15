@@ -62,6 +62,14 @@ pub struct Args {
     #[arg(short = 'e', long = "ec-level", default_value = "M", value_parser = parse_ec_level)]
     pub ec_level: String,
 
+    /// Quiet zone width in modules around the QR code.
+    ///
+    /// The QR code specification recommends a quiet zone of at least 4 modules
+    /// for reliable scanning. Set to 0 for edge-to-edge output.
+    /// Default: 4.
+    #[arg(short = 'q', long = "quiet-space", default_value = "4")]
+    pub quiet_space: u32,
+
     /// Skip overwrite confirmation and force-write the output file.
     ///
     /// Use this in scripts or when you are certain you want to overwrite

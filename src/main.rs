@@ -89,7 +89,7 @@ fn main() {
 
     // Step 4: Generate the QR code image bytes.
     let ec = ec_level_to_qrcode(&args.ec_level);
-    let bytes = match generate_qr(&text, size, format, ec) {
+    let bytes = match generate_qr(&text, size, format, ec, args.quiet_space) {
         Ok(b) => b,
         Err(e) => {
             // Stop the spinner before printing the error so it doesn't linger.

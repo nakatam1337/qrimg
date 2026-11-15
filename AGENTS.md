@@ -21,6 +21,7 @@
 - **`-o, --output`** — output filename (base name only; extension decided by `-t`, any extension given to `-o` is ignored)
 - **`-s, --size`** — square image size in pixels, default `512`, range `8–8192`
 - **`-e, --ec-level`** — error correction: `L`, `M` (default), `Q`, `H`
+- **`-q, --quiet-space`** — quiet zone width in modules around QR code, default `4` (0 = edge-to-edge)
 - **`-y, --force`** — skip overwrite confirmation
 - **Input limit** — 2,000 bytes max. QR codes top out around 2,953 bytes; larger input is rejected.
 - **Overwrite** — if output exists and `-y` not passed, prompts (interactive) or fails (non-interactive)

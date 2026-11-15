@@ -75,15 +75,16 @@ fn scale_nearest(pixels: &[RGBA8], src: u32, dst: u32) -> Vec<RGBA8> {
 }
 
 /// Generate QR code image bytes for `text`, scaled to `size` x `size` pixels,
-/// using the given error correction level.
+/// using the given error correction level and quiet zone width.
 ///
 /// This is the central pipeline function. It:
 /// 1. Validates input size (rejects > 2,000 bytes)
 /// 2. Validates output size bounds (8–8192 pixels)
 /// 3. Encodes text into a QR code matrix with the given EC level
 /// 4. Renders modules to RGBA pixels
-/// 5. Scales to the requested output size
-/// 6. Encodes to the requested format (WebP / SVG / AVIF)
+/// 5. Applies quiet zone padding around the module grid
+/// 6. Scales to the requested output size
+/// 7. Encodes to the requested format (WebP / SVG / AVIF)
 ///
 /// Returns `Err(String)` on oversized input, invalid size, or encoding failure.
 pub(super) fn generate_qr(
@@ -91,6 +92,7 @@ pub(super) fn generate_qr(
     size: u32,
     format: Format,
     ec_level: EcLevel,
+    quiet_space: u32,
 ) -> Result<Vec<u8>, String> {
     // Guard against absurdly large input that can't physically fit in a QR code.
     let input_len = text.len();
@@ -126,11 +128,13 @@ pub(super) fn generate_qr(
 
     match format {
         // ---------------------------------------------------------------
-        // WebP: render RGBA modules, scale, encode lossless via image-webp
+        // WebP: render RGBA modules, add quiet zone, scale, encode lossless
         // ---------------------------------------------------------------
         Format::Webp => {
             let modules = render_modules(&qr);
-            let scaled = scale_nearest(&modules, module_count, size);
+            let padded = pad_modules(&modules, module_count, quiet_space);
+            let padded_count = module_count + 2 * quiet_space;
+            let scaled = scale_nearest(&padded, padded_count, size);
             // Flatten RGBA8 structs to a flat u8 array for the encoder.
             let flat: Vec<u8> = scaled.iter().flat_map(|p| [p.r, p.g, p.b, p.a]).collect();
 
@@ -142,30 +146,28 @@ pub(super) fn generate_qr(
             Ok(buf)
         }
         // ---------------------------------------------------------------
-        // SVG: render manually from the module grid (edge-to-edge, no quiet zone)
+        // SVG: render manually from the module grid with quiet zone padding
         // ---------------------------------------------------------------
         Format::Svg => {
             let modules = render_modules(&qr);
-            let module_count = qr.width() as u32;
+            let padded_count = module_count + 2 * quiet_space;
 
             let mut svg = String::new();
             svg.push_str(&format!(
                 r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="0 0 {} {}" shape-rendering="crispEdges">"#,
-                size, size, module_count, module_count
+                size, size, padded_count, padded_count
             ));
 
             // White background fills the whole canvas so SVG matches WebP/AVIF output.
             svg.push_str(&format!(
                 r#"<rect x="0" y="0" width="{}" height="{}" fill="white"/>"#,
-                module_count, module_count
+                padded_count, padded_count
             ));
 
             // Build path data using run-length encoding per row at *module* resolution.
-            // Coordinates are module indices (e.g. 0..29), not pixel coordinates (0..511),
-            // so the path data uses much smaller numbers — significantly more compact.
-            // Each black run becomes one sub-path: M x y h w v 1 h -w z
-            // Using <path> instead of <rect> per run is more compact.
-            // No quiet zone is added: output is edge-to-edge, consistent with WebP/AVIF.
+            // Coordinates are offset by quiet_space so the QR modules sit inside
+            // the padded canvas. Each black run becomes one sub-path:
+            // M x y h w v 1 h -w z
             let mut path_data = String::new();
             for dy in 0..module_count {
                 let mut dx = 0;
@@ -182,9 +184,13 @@ pub(super) fn generate_qr(
                             run_end += 1;
                         }
                         let run_width = run_end - dx;
+                        // Offset x/y by quiet_space so modules sit inside the padding.
                         path_data.push_str(&format!(
                             "M{} {}h{}v1h-{}z",
-                            dx, dy, run_width, run_width
+                            dx + quiet_space,
+                            dy + quiet_space,
+                            run_width,
+                            run_width
                         ));
                         dx = run_end;
                     } else {
@@ -201,11 +207,13 @@ pub(super) fn generate_qr(
             Ok(svg.into_bytes())
         }
         // ---------------------------------------------------------------
-        // AVIF: render RGBA modules, scale, encode via ravif (rav1e-based)
+        // AVIF: render RGBA modules, add quiet zone, scale, encode via ravif
         // ---------------------------------------------------------------
         Format::Avif => {
             let modules = render_modules(&qr);
-            let scaled = scale_nearest(&modules, module_count, size);
+            let padded = pad_modules(&modules, module_count, quiet_space);
+            let padded_count = module_count + 2 * quiet_space;
+            let scaled = scale_nearest(&padded, padded_count, size);
             let encoder = Encoder::new();
             let img = Img::new(&scaled[..], size as usize, size as usize);
             let encoded = encoder
@@ -214,4 +222,22 @@ pub(super) fn generate_qr(
             Ok(encoded.avif_file)
         }
     }
+}
+
+/// Pad the module grid with a white quiet zone border.
+///
+/// Creates a canvas of `(module_count + 2 * quiet_space) x (module_count + 2 * quiet_space)`
+/// pixels filled with white, then copies the QR modules into the center starting
+/// at offset `quiet_space` on each edge.
+fn pad_modules(modules: &[RGBA8], module_count: u32, quiet_space: u32) -> Vec<RGBA8> {
+    let padded_count = module_count + 2 * quiet_space;
+    let mut canvas = vec![RGBA8::new(255, 255, 255, 255); (padded_count * padded_count) as usize];
+    for y in 0..module_count {
+        for x in 0..module_count {
+            let cx = x + quiet_space;
+            let cy = y + quiet_space;
+            canvas[(cy * padded_count + cx) as usize] = modules[(y * module_count + x) as usize];
+        }
+    }
+    canvas
 }

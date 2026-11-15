@@ -97,7 +97,7 @@ pub fn resolve_output(output: Option<&str>, format: Format) -> String {
 }
 
 /// Public API: generate QR code image bytes for `text`, scaled to `size` x `size` pixels,
-/// using the given error correction level.
+/// using the given error correction level and quiet zone width.
 ///
 /// Delegates to [`generator::generate_qr`] which does the actual rendering
 /// and encoding. Returns a `Result` so callers can handle oversized input
@@ -107,8 +107,9 @@ pub fn generate_qr(
     size: u32,
     format: Format,
     ec_level: EcLevel,
+    quiet_space: u32,
 ) -> Result<Vec<u8>, String> {
-    generator::generate_qr(text, size, format, ec_level)
+    generator::generate_qr(text, size, format, ec_level, quiet_space)
 }
 
 #[cfg(test)]
@@ -146,7 +147,7 @@ mod tests {
     fn generate_qr_webp_returns_bytes() {
         // WebP output must start with the RIFF/WEBP container header.
         let ec = ec_level_to_qrcode("M");
-        let bytes = generate_qr("hello", 64, Format::Webp, ec).unwrap();
+        let bytes = generate_qr("hello", 64, Format::Webp, ec, 0).unwrap();
         assert!(!bytes.is_empty());
         assert_eq!(&bytes[0..4], b"RIFF");
         assert_eq!(&bytes[8..12], b"WEBP");
@@ -156,7 +157,7 @@ mod tests {
     fn generate_qr_svg_returns_valid_svg() {
         // SVG output must be well-formed XML with <svg> root element.
         let ec = ec_level_to_qrcode("M");
-        let bytes = generate_qr("hello", 64, Format::Svg, ec).unwrap();
+        let bytes = generate_qr("hello", 64, Format::Svg, ec, 0).unwrap();
         let text = String::from_utf8_lossy(&bytes);
         assert!(text.contains("<svg"));
         assert!(text.contains("</svg>"));
@@ -166,7 +167,7 @@ mod tests {
     fn generate_qr_avif_returns_bytes() {
         // AVIF output must contain the AVIF "ftyp" box signature.
         let ec = ec_level_to_qrcode("M");
-        let bytes = generate_qr("hello", 64, Format::Avif, ec).unwrap();
+        let bytes = generate_qr("hello", 64, Format::Avif, ec, 0).unwrap();
         assert!(!bytes.is_empty());
         assert_eq!(&bytes[4..8], b"ftyp");
     }
@@ -175,8 +176,8 @@ mod tests {
     fn generate_qr_different_sizes_different_lengths() {
         // Larger output images should produce larger encoded files.
         let ec = ec_level_to_qrcode("M");
-        let small = generate_qr("test", 32, Format::Webp, ec).unwrap().len();
-        let large = generate_qr("test", 256, Format::Webp, ec).unwrap().len();
+        let small = generate_qr("test", 32, Format::Webp, ec, 0).unwrap().len();
+        let large = generate_qr("test", 256, Format::Webp, ec, 0).unwrap().len();
         assert!(large > small);
     }
 
@@ -185,7 +186,7 @@ mod tests {
         // Input exceeding the 2,000-byte limit must be rejected with a clear error.
         let too_big = "x".repeat(2001);
         let ec = ec_level_to_qrcode("M");
-        let err = generate_qr(&too_big, 64, Format::Webp, ec).unwrap_err();
+        let err = generate_qr(&too_big, 64, Format::Webp, ec, 0).unwrap_err();
         assert!(err.contains("too large"));
         assert!(err.contains("2,953"));
     }
@@ -195,7 +196,25 @@ mod tests {
         // Input exactly at the limit should be accepted.
         let ec = ec_level_to_qrcode("M");
         let max = "x".repeat(2000);
-        let bytes = generate_qr(&max, 64, Format::Webp, ec).unwrap();
+        let bytes = generate_qr(&max, 64, Format::Webp, ec, 0).unwrap();
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn generate_qr_quiet_space_adds_white_padding() {
+        // With quiet_space > 0, the QR modules should not touch the canvas edge.
+        let ec = ec_level_to_qrcode("M");
+        let bytes = generate_qr("hello", 100, Format::Webp, ec, 4).unwrap();
+        assert!(!bytes.is_empty());
+        assert_eq!(&bytes[0..4], b"RIFF");
+        assert_eq!(&bytes[8..12], b"WEBP");
+    }
+
+    #[test]
+    fn generate_qr_quiet_space_zero_is_edge_to_edge() {
+        // quiet_space = 0 should behave like the old edge-to-edge output.
+        let ec = ec_level_to_qrcode("M");
+        let bytes = generate_qr("hello", 64, Format::Webp, ec, 0).unwrap();
         assert!(!bytes.is_empty());
     }
 
@@ -223,7 +242,7 @@ mod tests {
     fn generate_qr_rejects_size_too_small() {
         // Size below 8 pixels must be rejected.
         let ec = ec_level_to_qrcode("M");
-        let err = generate_qr("test", 7, Format::Webp, ec).unwrap_err();
+        let err = generate_qr("test", 7, Format::Webp, ec, 0).unwrap_err();
         assert!(err.contains("too small"));
     }
 
@@ -231,7 +250,7 @@ mod tests {
     fn generate_qr_rejects_size_too_large() {
         // Size above 8192 pixels must be rejected.
         let ec = ec_level_to_qrcode("M");
-        let err = generate_qr("test", 8193, Format::Webp, ec).unwrap_err();
+        let err = generate_qr("test", 8193, Format::Webp, ec, 0).unwrap_err();
         assert!(err.contains("too large"));
     }
 
@@ -240,7 +259,7 @@ mod tests {
         // All four error correction levels must produce valid output.
         for level in ["L", "M", "Q", "H"] {
             let ec = ec_level_to_qrcode(level);
-            let bytes = generate_qr("hello", 64, Format::Webp, ec).unwrap();
+            let bytes = generate_qr("hello", 64, Format::Webp, ec, 0).unwrap();
             assert!(!bytes.is_empty(), "EC level {level} produced empty output");
         }
     }
@@ -249,7 +268,7 @@ mod tests {
     fn generate_qr_svg_has_white_background() {
         // SVG output must include a full-canvas white background rect.
         let ec = ec_level_to_qrcode("M");
-        let bytes = generate_qr("hello", 64, Format::Svg, ec).unwrap();
+        let bytes = generate_qr("hello", 64, Format::Svg, ec, 0).unwrap();
         let text = String::from_utf8_lossy(&bytes);
         assert!(
             text.contains("<rect x=\"0\" y=\"0\"") && text.contains("fill=\"white\"/>"),
